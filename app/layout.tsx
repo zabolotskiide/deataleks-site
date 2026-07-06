@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://detaleks.ru"),
+  metadataBase: new URL("https://detaleks43.ru"),
   title: {
     default: "ДЕТАЛЕКС - автозапчасти под заказ в Кирове",
     template: "%s | ДЕТАЛЕКС",
@@ -25,7 +25,7 @@ export const metadata: Metadata = {
     title: "ДЕТАЛЕКС - автозапчасти под заказ",
     description:
       "Подбор автозапчастей по VIN, проверка совместимости, федеральные поставщики и доставка по России.",
-    url: "https://detaleks.ru",
+    url: "https://detaleks43.ru",
     siteName: siteContacts.name,
     locale: "ru_RU",
     type: "website",

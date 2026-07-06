@@ -34,7 +34,7 @@ const localBusinessJsonLd = {
     addressCountry: "RU",
   },
   openingHours: "Mo-Su 09:00-20:00",
-  url: "https://detaleks.ru",
+  url: "https://detaleks43.ru",
   sameAs: [siteContacts.vk, siteContacts.telegram, siteContacts.max],
 };
 
