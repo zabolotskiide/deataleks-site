@@ -1,0 +1,109 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Lead {
+  id             String            @id @default(cuid())
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  name           String?
+  phone          String?
+  vin            String?
+  car            String?
+  partName       String?
+  category       String?
+  comment        String?
+  source         String?
+  fileName       String?
+  filePath       String?
+  fileMime       String?
+  fileSize       Int?
+  status         String            @default("new")
+  managerComment String?
+  finalPrice     Float?
+  profit         Float?
+  calculations   LeadCalculation[]
+  notes          LeadNote[]
+  supplierQuotes SupplierQuote[]
+}
+
+model SupplierQuote {
+  id             String   @id @default(cuid())
+  leadId         String
+  createdAt      DateTime @default(now())
+  supplier       String
+  article        String?
+  brand          String?
+  name           String?
+  purchasePrice  Float?
+  markup         Float?
+  clientPrice    Float?
+  deliveryTerm   String?
+  quantity       String?
+  warehouse      String?
+  raw            String?
+  lead           Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+}
+
+model LeadCalculation {
+  id             String   @id @default(cuid())
+  leadId         String
+  createdAt      DateTime @default(now())
+  purchasePrice  Float    @default(0)
+  deliveryCost   Float    @default(0)
+  buyerFee       Float    @default(0)
+  otherExpenses  Float    @default(0)
+  markupPercent  Float    @default(0)
+  fixedMarkup    Float    @default(0)
+  taxPercent     Float    @default(6)
+  discount       Float    @default(0)
+  costPrice      Float    @default(0)
+  recommended    Float    @default(0)
+  finalPrice     Float    @default(0)
+  tax            Float    @default(0)
+  profit         Float    @default(0)
+  marginPercent  Float    @default(0)
+  markupActual   Float    @default(0)
+  lead           Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+}
+
+model LeadNote {
+  id        String   @id @default(cuid())
+  leadId    String
+  createdAt DateTime @default(now())
+  text      String
+  lead      Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+}
+
+model SiteSettings {
+  id             String   @id @default("default")
+  phone          String
+  email          String
+  workTime       String
+  vk             String
+  telegram       String
+  max            String
+  region         String
+  paymentMethods String
+  logo           String
+  heroTitle      String
+  seoTitle       String
+  seoDescription String
+  ipName         String
+  inn            String
+  ogrnip         String
+  legalDetails   String
+  updatedAt      DateTime @updatedAt
+}
+
+model AdminUser {
+  id           String   @id @default(cuid())
+  login        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+}
