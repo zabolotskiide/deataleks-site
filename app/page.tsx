@@ -34,7 +34,9 @@ export default function Home() {
     <main className="min-h-screen overflow-hidden bg-[#070707] text-white">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(localBusinessJsonLd) }}
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(localBusinessJsonLd).replace(/</g, "\\u003c"),
+        }}
       />
       <Header />
       <Hero />
