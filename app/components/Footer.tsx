@@ -1,4 +1,3 @@
-import Image from "next/image";
 import { requisites, siteContacts } from "@/lib/site";
 
 const navigation = [
@@ -21,16 +20,25 @@ export function Footer() {
     <footer className="site-footer border-t border-white/10 bg-black px-5 py-12 sm:px-8">
       <div className="footer-grid mx-auto max-w-7xl">
         <div>
-          <Image src="/images/detaleks-logo.png" alt="ДЕТАЛЕКС автозапчасти под заказ" width={220} height={108} className="footer-logo" />
+          <a href="#top" className="footer-brand" aria-label="ДЕТАЛЕКС">
+            <span className="brand-word">
+              ДЕТАЛ<span>ЕКС</span>
+            </span>
+            <small>автозапчасти под заказ</small>
+          </a>
           <p>Автозапчасти под заказ. Подбор по VIN, проверка совместимости и доставка по России.</p>
         </div>
         <nav aria-label="Навигация в футере">
           {navigation.map((item) => (
-            <a key={item.href} href={item.href}>{item.label}</a>
+            <a key={item.href} href={item.href}>
+              {item.label}
+            </a>
           ))}
         </nav>
         <div>
-          <a href={siteContacts.phoneHref} className="footer-strong">{siteContacts.phone}</a>
+          <a href={siteContacts.phoneHref} className="footer-strong">
+            {siteContacts.phone}
+          </a>
           <a href={siteContacts.emailHref}>{siteContacts.email}</a>
           <span>{siteContacts.workTime}</span>
           <span>{siteContacts.city}</span>
@@ -39,9 +47,13 @@ export function Footer() {
           <span>{requisites.ipName}</span>
           <span>ИНН {requisites.inn}</span>
           <span>ОГРНИП {requisites.ogrnip}</span>
-          <a href="/requisites" className="footer-strong">Все реквизиты</a>
+          <a href="/requisites" className="footer-strong">
+            Все реквизиты
+          </a>
           {legalLinks.map((item) => (
-            <a key={item.href} href={item.href}>{item.label}</a>
+            <a key={item.href} href={item.href}>
+              {item.label}
+            </a>
           ))}
         </div>
       </div>

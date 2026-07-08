@@ -34,7 +34,7 @@ export default async function AdminLeadDetailPage({ params }: { params: Promise<
             <div><dt>Что нужно подобрать</dt><dd>{lead.partName || lead.comment || "-"}</dd></div>
             <div><dt>Источник</dt><dd>{lead.source || "-"}</dd></div>
             <div><dt>Статус</dt><dd>{leadStatusLabel(lead.status)}</dd></div>
-            <div><dt>Файл</dt><dd>{lead.filePath ? <a href={lead.filePath} target="_blank">{lead.fileName || "Открыть файл"}</a> : "-"}</dd></div>
+            <div><dt>Файл</dt><dd>{lead.fileName ? <a href={`/api/admin/leads/${lead.id}/file`} target="_blank">{lead.fileName}</a> : "-"}</dd></div>
           </dl>
         </article>
         <article className="admin-panel">

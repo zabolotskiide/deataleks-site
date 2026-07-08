@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -23,6 +23,7 @@ model Lead {
   filePath       String?
   fileMime       String?
   fileSize       Int?
+  fileData       Bytes?
   status         String            @default("new")
   managerComment String?
   finalPrice     Float?

@@ -65,18 +65,35 @@ header > div {
 }
 
 .header-logo {
-  display: block;
+  display: grid;
+  gap: 0.12rem;
   width: clamp(8.8rem, 15vw, 13rem);
-  line-height: 0;
+  line-height: 1;
 }
 
-.header-logo img {
-  width: 100%;
-  height: auto;
-  max-height: 3.5rem;
-  object-fit: contain;
-  object-position: left center;
-  filter: drop-shadow(0 0 16px rgba(255, 255, 255, 0.14));
+.brand-word {
+  display: block;
+  color: white;
+  font-size: clamp(1.28rem, 2vw, 1.95rem);
+  font-weight: 950;
+  line-height: 0.9;
+  letter-spacing: 0;
+  text-transform: uppercase;
+  text-shadow: 0 0 18px rgba(255, 255, 255, 0.16);
+}
+
+.brand-word span {
+  color: var(--red-bright);
+}
+
+.header-logo small,
+.footer-brand small {
+  display: block;
+  color: rgba(255, 255, 255, 0.62);
+  font-size: clamp(0.48rem, 0.9vw, 0.72rem);
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
 
 .header-socials {
@@ -868,11 +885,14 @@ header > div {
   color: white !important;
 }
 
-.footer-logo {
-  width: 11rem;
-  height: auto;
-  object-fit: contain;
-  object-position: left center;
+.footer-brand {
+  display: grid;
+  gap: 0.2rem;
+  width: fit-content;
+}
+
+.footer-brand .brand-word {
+  font-size: 1.75rem;
 }
 
 .requisites-page .section-heading h1 {

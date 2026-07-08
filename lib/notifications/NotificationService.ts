@@ -20,6 +20,9 @@ export type LeadPayload = {
   vin?: string;
   partName?: string;
   file?: string;
+  fileName?: string;
+  fileMime?: string;
+  fileData?: Uint8Array;
   source?: string;
   date?: string;
   quotes?: LeadQuotePayload[];
@@ -121,7 +124,19 @@ async function sendEmail(payload: LeadPayload): Promise<NotificationResult> {
   if (!host || !user || !pass || !emailTo) return { channel: "email", status: "skipped" };
 
   const transporter = nodemailer.createTransport({ host, port, secure: port === 465, auth: { user, pass } });
-  await transporter.sendMail({ from: `ДЕТАЛЕКС <${user}>`, to: emailTo, subject: "Новая заявка ДЕТАЛЕКС", text: formatLead(payload) });
+  await transporter.sendMail({
+    from: `ДЕТАЛЕКС <${user}>`,
+    to: emailTo,
+    subject: "Новая заявка ДЕТАЛЕКС",
+    text: formatLead(payload),
+    attachments: payload.fileData && payload.fileName
+      ? [{
+          filename: payload.fileName,
+          content: Buffer.from(payload.fileData),
+          contentType: payload.fileMime,
+        }]
+      : undefined,
+  });
   return { channel: "email", status: "sent" };
 }
 

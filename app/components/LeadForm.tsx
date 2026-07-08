@@ -36,18 +36,24 @@ export function LeadForm({ variant, source }: LeadFormProps) {
     setStatus("sending");
     setMessage("");
 
-    const response = await fetch("/api/lead", { method: "POST", body: data });
-    const result = await response.json().catch(() => null);
+    try {
+      const response = await fetch("/api/lead", { method: "POST", body: data });
+      const result = await response.json().catch(() => null);
 
-    if (response.ok) {
-      form.reset();
-      setStatus("success");
-      setMessage("Спасибо. Мы получили заявку и скоро свяжемся.");
-      return;
+      if (response.ok && result?.ok) {
+        form.reset();
+        setStatus("success");
+        setMessage("Спасибо! Заявка успешно отправлена. Мы скоро свяжемся с вами.");
+        return;
+      }
+
+      setStatus("error");
+      setMessage(result?.message || "Не удалось отправить заявку. Повторите попытку позже.");
+    } catch (error) {
+      console.error("Lead form request failed", error);
+      setStatus("error");
+      setMessage("Не удалось связаться с сервером. Проверьте интернет и повторите попытку.");
     }
-
-    setStatus("error");
-    setMessage(result?.message || "Не удалось отправить заявку. Позвоните нам по телефону.");
   }
 
   const isHero = variant === "hero";

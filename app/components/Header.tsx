@@ -1,4 +1,3 @@
-﻿import Image from "next/image";
 import { siteContacts } from "@/lib/site";
 
 const navItems = [
@@ -20,7 +19,10 @@ export function Header() {
     <header className="fixed inset-x-0 top-0 z-50 border-b border-white/10 bg-black/75 backdrop-blur-xl">
       <div className="mx-auto flex h-20 max-w-[1440px] items-center justify-between px-5 sm:px-8">
         <a href="#top" className="header-logo" aria-label="ДЕТАЛЕКС">
-          <Image src="/images/detaleks-logo.png" alt="ДЕТАЛЕКС автозапчасти под заказ" width={260} height={128} priority />
+          <span className="brand-word">
+            ДЕТАЛ<span>ЕКС</span>
+          </span>
+          <small>автозапчасти под заказ</small>
         </a>
 
         <nav className="hidden items-center gap-7 lg:flex" aria-label="Основная навигация">

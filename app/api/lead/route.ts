@@ -1,6 +1,4 @@
 import { randomUUID } from "crypto";
-import { mkdir, writeFile } from "fs/promises";
-import path from "path";
 import { NextResponse } from "next/server";
 import { NotificationService, type LeadPayload } from "@/lib/notifications/NotificationService";
 import { calculateDetaleksClientPrice } from "@/lib/pricing";
@@ -24,7 +22,9 @@ function safeFileName(name: string) {
 }
 
 function clientIp(request: Request) {
-  return request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || request.headers.get("x-real-ip") || "unknown";
+  return request.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
+    || request.headers.get("x-real-ip")
+    || "unknown";
 }
 
 function isRateLimited(ip: string) {
@@ -39,7 +39,7 @@ function isRateLimited(ip: string) {
   return false;
 }
 
-async function saveUpload(file: FormDataEntryValue | null) {
+async function readUpload(file: FormDataEntryValue | null) {
   if (!(file instanceof File) || file.size === 0) return null;
   if (file.size > maxFileSize) throw new Error("Файл больше 20 MB");
 
@@ -47,95 +47,125 @@ async function saveUpload(file: FormDataEntryValue | null) {
   const extension = originalName.split(".").pop()?.toLowerCase() || "";
   if (!allowedExtensions.has(extension)) throw new Error("Неподдерживаемый формат файла");
 
-  const uploadDir = path.join(process.cwd(), "public", "uploads", "leads");
-  await mkdir(uploadDir, { recursive: true });
-  const storedName = `${Date.now()}-${randomUUID()}.${extension}`;
-  const storedPath = path.join(uploadDir, storedName);
-  await writeFile(storedPath, Buffer.from(await file.arrayBuffer()));
-
-  return { fileName: originalName, filePath: `/uploads/leads/${storedName}`, fileMime: file.type || "application/octet-stream", fileSize: file.size };
+  return {
+    fileName: originalName,
+    fileMime: file.type || "application/octet-stream",
+    fileSize: file.size,
+    fileData: Buffer.from(await file.arrayBuffer()),
+  };
 }
 
 export async function POST(request: Request) {
-  const formData = await request.formData().catch(() => null);
-  if (!formData) return NextResponse.json({ ok: false, message: "Некорректная заявка" }, { status: 400 });
+  const requestId = randomUUID();
 
-  if (clean(formData.get("website"))) {
-    return NextResponse.json({ ok: true });
-  }
-
-  if (isRateLimited(clientIp(request))) {
-    return NextResponse.json({ ok: false, message: "Слишком много заявок. Попробуйте позже." }, { status: 429 });
-  }
-
-  let upload: Awaited<ReturnType<typeof saveUpload>> = null;
   try {
-    upload = await saveUpload(formData.get("file"));
-  } catch (error) {
-    return NextResponse.json({ ok: false, message: error instanceof Error ? error.message : "Ошибка загрузки файла" }, { status: 400 });
-  }
+    const formData = await request.formData();
+    if (clean(formData.get("website"))) return NextResponse.json({ ok: true });
 
-  const requestText = clean(formData.get("requestText"));
-  const payload: LeadPayload = {
-    source: clean(formData.get("source")) || "Сайт",
-    name: clean(formData.get("name")),
-    phone: clean(formData.get("phone")),
-    vin: clean(formData.get("vin")),
-    partName: requestText,
-    file: upload?.filePath,
-    date: new Date().toLocaleString("ru-RU"),
-  };
+    if (isRateLimited(clientIp(request))) {
+      return NextResponse.json(
+        { ok: false, message: "Слишком много заявок. Попробуйте позже." },
+        { status: 429 },
+      );
+    }
 
-  if (!payload.phone || (!payload.vin && !requestText)) {
-    return NextResponse.json({ ok: false, message: "Укажите телефон и VIN/frame/артикул или что нужно подобрать" }, { status: 400 });
-  }
-
-  const lead = await prisma.lead.create({
-    data: {
-      name: payload.name,
-      phone: payload.phone,
-      vin: payload.vin,
+    const requestText = clean(formData.get("requestText"));
+    const payload: LeadPayload = {
+      source: clean(formData.get("source")) || "Сайт",
+      name: clean(formData.get("name")),
+      phone: clean(formData.get("phone")),
+      vin: clean(formData.get("vin")),
       partName: requestText,
-      comment: requestText,
-      source: payload.source,
-      status: "new",
-      fileName: upload?.fileName,
-      filePath: upload?.filePath,
-      fileMime: upload?.fileMime,
-      fileSize: upload?.fileSize,
-    },
-  });
+      date: new Date().toLocaleString("ru-RU"),
+    };
 
-  const supplierSearch = payload.vin || requestText
-    ? await searchAllSuppliers({ vin: payload.vin, article: payload.vin, partName: requestText })
-    : { results: [], errors: [] };
+    if (!payload.phone || (!payload.vin && !requestText)) {
+      return NextResponse.json(
+        { ok: false, message: "Укажите телефон и VIN/frame/артикул или что нужно подобрать." },
+        { status: 400 },
+      );
+    }
 
-  const quotes = supplierSearch.results
-    .filter((result) => typeof result.purchasePrice === "number" && result.purchasePrice > 0)
-    .map((result) => {
-      const calculated = calculateDetaleksClientPrice(result.purchasePrice || 0);
-      return {
-        supplier: result.supplier,
-        article: result.article,
-        brand: result.brand,
-        name: result.name,
-        purchasePrice: result.purchasePrice,
-        markup: calculated.markup,
-        clientPrice: calculated.clientPrice,
-        deliveryTerm: result.deliveryTerm,
-        quantity: result.quantity,
-        warehouse: result.warehouse,
-        raw: result.raw ? JSON.stringify(result.raw).slice(0, 4000) : undefined,
-      };
+    let upload: Awaited<ReturnType<typeof readUpload>>;
+    try {
+      upload = await readUpload(formData.get("file"));
+    } catch (error) {
+      return NextResponse.json(
+        { ok: false, message: error instanceof Error ? error.message : "Ошибка загрузки файла." },
+        { status: 400 },
+      );
+    }
+
+    const lead = await prisma.lead.create({
+      data: {
+        name: payload.name,
+        phone: payload.phone,
+        vin: payload.vin,
+        partName: requestText,
+        comment: requestText,
+        source: payload.source,
+        status: "new",
+        fileName: upload?.fileName,
+        fileMime: upload?.fileMime,
+        fileSize: upload?.fileSize,
+        fileData: upload?.fileData,
+      },
     });
 
-  if (quotes.length) {
-    await prisma.supplierQuote.createMany({ data: quotes.map((quote) => ({ ...quote, leadId: lead.id })) });
-    const bestQuote = quotes.reduce((best, current) => (current.clientPrice || Infinity) < (best.clientPrice || Infinity) ? current : best, quotes[0]);
-    await prisma.lead.update({ where: { id: lead.id }, data: { finalPrice: bestQuote.clientPrice, profit: bestQuote.markup } });
+    payload.file = upload?.fileName;
+    payload.fileName = upload?.fileName;
+    payload.fileMime = upload?.fileMime;
+    payload.fileData = upload?.fileData;
+
+    const supplierSearch = payload.vin || requestText
+      ? await searchAllSuppliers({ vin: payload.vin, article: payload.vin, partName: requestText })
+      : { results: [], errors: [] };
+
+    const quotes = supplierSearch.results
+      .filter((result) => typeof result.purchasePrice === "number" && result.purchasePrice > 0)
+      .map((result) => {
+        const calculated = calculateDetaleksClientPrice(result.purchasePrice || 0);
+        return {
+          supplier: result.supplier,
+          article: result.article,
+          brand: result.brand,
+          name: result.name,
+          purchasePrice: result.purchasePrice,
+          markup: calculated.markup,
+          clientPrice: calculated.clientPrice,
+          deliveryTerm: result.deliveryTerm,
+          quantity: result.quantity,
+          warehouse: result.warehouse,
+          raw: result.raw ? JSON.stringify(result.raw).slice(0, 4000) : undefined,
+        };
+      });
+
+    if (quotes.length) {
+      await prisma.supplierQuote.createMany({
+        data: quotes.map((quote) => ({ ...quote, leadId: lead.id })),
+      });
+      const bestQuote = quotes.reduce(
+        (best, current) => (current.clientPrice || Infinity) < (best.clientPrice || Infinity) ? current : best,
+        quotes[0],
+      );
+      await prisma.lead.update({
+        where: { id: lead.id },
+        data: { finalPrice: bestQuote.clientPrice, profit: bestQuote.markup },
+      });
+    }
+
+    const notifications = await NotificationService.sendLead({
+      ...payload,
+      quotes,
+      supplierErrors: supplierSearch.errors,
+    });
+
+    return NextResponse.json({ ok: true, leadId: lead.id, notifications });
+  } catch (error) {
+    console.error(`[lead:${requestId}] Failed to process lead`, error);
+    return NextResponse.json(
+      { ok: false, message: "Не удалось отправить заявку. Повторите попытку позже.", requestId },
+      { status: 500 },
+    );
   }
-
-  const notifications = await NotificationService.sendLead({ ...payload, quotes, supplierErrors: supplierSearch.errors });
-
-  return NextResponse.json({ ok: true, leadId: lead.id, notifications });
 }

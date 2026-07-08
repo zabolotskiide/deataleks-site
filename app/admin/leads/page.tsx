@@ -23,7 +23,7 @@ export default async function AdminLeadsPage() {
             <tbody>
               {leads.map((lead) => (
                 <tr key={lead.id}>
-                  <td>{lead.id.slice(0, 8)}</td><td>{lead.createdAt.toLocaleString("ru-RU")}</td><td>{lead.name || "-"}</td><td>{lead.phone || "-"}</td><td>{lead.vin || "-"}</td><td>{lead.partName || lead.comment || "-"}</td><td>{lead.filePath ? <a href={lead.filePath} target="_blank">Файл</a> : "-"}</td><td>{leadStatusLabel(lead.status)}</td><td>{money(lead.finalPrice)}</td><td>{money(lead.profit)}</td><td><Link href={`/admin/leads/${lead.id}`}>Открыть</Link></td>
+                  <td>{lead.id.slice(0, 8)}</td><td>{lead.createdAt.toLocaleString("ru-RU")}</td><td>{lead.name || "-"}</td><td>{lead.phone || "-"}</td><td>{lead.vin || "-"}</td><td>{lead.partName || lead.comment || "-"}</td><td>{lead.fileName ? <a href={`/api/admin/leads/${lead.id}/file`} target="_blank">Файл</a> : "-"}</td><td>{leadStatusLabel(lead.status)}</td><td>{money(lead.finalPrice)}</td><td>{money(lead.profit)}</td><td><Link href={`/admin/leads/${lead.id}`}>Открыть</Link></td>
                 </tr>
               ))}
             </tbody>
