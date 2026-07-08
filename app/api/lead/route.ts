@@ -13,6 +13,8 @@ const rateLimitWindowMs = 10 * 60 * 1000;
 const rateLimitMax = 5;
 const rateLimitStore = new Map<string, number[]>();
 
+const databaseRetryDelays = [400, 1200, 2400];
+
 function clean(value: FormDataEntryValue | null) {
   return typeof value === "string" ? value.trim().slice(0, 2000) : "";
 }
@@ -37,6 +39,27 @@ function isRateLimited(ip: string) {
   recent.push(now);
   rateLimitStore.set(ip, recent);
   return false;
+}
+
+function wait(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function withDatabaseRetry<T>(operation: () => Promise<T>) {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt <= databaseRetryDelays.length; attempt += 1) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error;
+      const delay = databaseRetryDelays[attempt];
+      if (typeof delay !== "number") break;
+      await wait(delay);
+    }
+  }
+
+  throw lastError;
 }
 
 async function readUpload(file: FormDataEntryValue | null) {
@@ -100,22 +123,22 @@ export async function POST(request: Request) {
     let storageError: string | undefined;
 
     try {
-      lead = await prisma.lead.create({
-        data: {
-          name: payload.name,
-          phone: payload.phone,
-          vin: payload.vin,
-          partName: requestText,
-          comment: requestText,
-          source: payload.source,
-          status: "new",
-          fileName: upload?.fileName,
-          fileMime: upload?.fileMime,
-          fileSize: upload?.fileSize,
-          fileData: upload?.fileData,
-        },
-        select: { id: true },
-      });
+      lead = await withDatabaseRetry(() => prisma.lead.create({
+          data: {
+            name: payload.name,
+            phone: payload.phone,
+            vin: payload.vin,
+            partName: requestText,
+            comment: requestText,
+            source: payload.source,
+            status: "new",
+            fileName: upload?.fileName,
+            fileMime: upload?.fileMime,
+            fileSize: upload?.fileSize,
+            fileData: upload?.fileData,
+          },
+          select: { id: true },
+        }));
     } catch (error) {
       storageError = error instanceof Error ? error.message : "Unknown database error";
       console.error(`[lead:${requestId}] Failed to save lead`, error);
@@ -151,17 +174,17 @@ export async function POST(request: Request) {
 
     if (quotes.length && lead) {
       try {
-        await prisma.supplierQuote.createMany({
+        await withDatabaseRetry(() => prisma.supplierQuote.createMany({
           data: quotes.map((quote) => ({ ...quote, leadId: lead.id })),
-        });
+        }));
         const bestQuote = quotes.reduce(
           (best, current) => (current.clientPrice || Infinity) < (best.clientPrice || Infinity) ? current : best,
           quotes[0],
         );
-        await prisma.lead.update({
+        await withDatabaseRetry(() => prisma.lead.update({
           where: { id: lead.id },
           data: { finalPrice: bestQuote.clientPrice, profit: bestQuote.markup },
-        });
+        }));
       } catch (error) {
         storageError = error instanceof Error ? error.message : "Unknown quote storage error";
         console.error(`[lead:${requestId}] Failed to save supplier quotes`, error);
