@@ -96,21 +96,30 @@ export async function POST(request: Request) {
       );
     }
 
-    const lead = await prisma.lead.create({
-      data: {
-        name: payload.name,
-        phone: payload.phone,
-        vin: payload.vin,
-        partName: requestText,
-        comment: requestText,
-        source: payload.source,
-        status: "new",
-        fileName: upload?.fileName,
-        fileMime: upload?.fileMime,
-        fileSize: upload?.fileSize,
-        fileData: upload?.fileData,
-      },
-    });
+    let lead: { id: string } | null = null;
+    let storageError: string | undefined;
+
+    try {
+      lead = await prisma.lead.create({
+        data: {
+          name: payload.name,
+          phone: payload.phone,
+          vin: payload.vin,
+          partName: requestText,
+          comment: requestText,
+          source: payload.source,
+          status: "new",
+          fileName: upload?.fileName,
+          fileMime: upload?.fileMime,
+          fileSize: upload?.fileSize,
+          fileData: upload?.fileData,
+        },
+        select: { id: true },
+      });
+    } catch (error) {
+      storageError = error instanceof Error ? error.message : "Unknown database error";
+      console.error(`[lead:${requestId}] Failed to save lead`, error);
+    }
 
     payload.file = upload?.fileName;
     payload.fileName = upload?.fileName;
@@ -140,18 +149,23 @@ export async function POST(request: Request) {
         };
       });
 
-    if (quotes.length) {
-      await prisma.supplierQuote.createMany({
-        data: quotes.map((quote) => ({ ...quote, leadId: lead.id })),
-      });
-      const bestQuote = quotes.reduce(
-        (best, current) => (current.clientPrice || Infinity) < (best.clientPrice || Infinity) ? current : best,
-        quotes[0],
-      );
-      await prisma.lead.update({
-        where: { id: lead.id },
-        data: { finalPrice: bestQuote.clientPrice, profit: bestQuote.markup },
-      });
+    if (quotes.length && lead) {
+      try {
+        await prisma.supplierQuote.createMany({
+          data: quotes.map((quote) => ({ ...quote, leadId: lead.id })),
+        });
+        const bestQuote = quotes.reduce(
+          (best, current) => (current.clientPrice || Infinity) < (best.clientPrice || Infinity) ? current : best,
+          quotes[0],
+        );
+        await prisma.lead.update({
+          where: { id: lead.id },
+          data: { finalPrice: bestQuote.clientPrice, profit: bestQuote.markup },
+        });
+      } catch (error) {
+        storageError = error instanceof Error ? error.message : "Unknown quote storage error";
+        console.error(`[lead:${requestId}] Failed to save supplier quotes`, error);
+      }
     }
 
     const notifications = await NotificationService.sendLead({
@@ -160,7 +174,13 @@ export async function POST(request: Request) {
       supplierErrors: supplierSearch.errors,
     });
 
-    return NextResponse.json({ ok: true, leadId: lead.id, notifications });
+    return NextResponse.json({
+      ok: true,
+      leadId: lead?.id || requestId,
+      notifications,
+      storage: lead ? "saved" : "unavailable",
+      storageError: storageError ? "Database is temporarily unavailable" : undefined,
+    });
   } catch (error) {
     console.error(`[lead:${requestId}] Failed to process lead`, error);
     return NextResponse.json(
