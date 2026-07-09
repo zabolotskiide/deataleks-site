@@ -1,7 +1,9 @@
 import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import { NotificationService, type LeadPayload } from "@/lib/notifications/NotificationService";
+import { calculateDetaleksClientPrice } from "@/lib/pricing";
 import { prisma } from "@/lib/prisma";
+import { searchAllSuppliers } from "@/lib/suppliers";
 
 export const runtime = "nodejs";
 
@@ -81,6 +83,54 @@ async function readUpload(file: FormDataEntryValue | null) {
   };
 }
 
+async function saveSupplierQuotes(leadId: string, vin: string | undefined, requestText: string) {
+  const supplierSearch = await searchAllSuppliers({
+    vin,
+    article: vin,
+    partName: requestText,
+  });
+
+  const quotes = supplierSearch.results
+    .filter((result) => typeof result.purchasePrice === "number" && result.purchasePrice > 0)
+    .map((result) => {
+      const calculated = calculateDetaleksClientPrice(result.purchasePrice || 0);
+
+      return {
+        supplier: result.supplier,
+        article: result.article,
+        brand: result.brand,
+        name: result.name,
+        purchasePrice: result.purchasePrice,
+        markup: calculated.markup,
+        clientPrice: calculated.clientPrice,
+        deliveryTerm: result.deliveryTerm,
+        quantity: result.quantity,
+        warehouse: result.warehouse,
+        raw: result.raw ? JSON.stringify(result.raw).slice(0, 4000) : undefined,
+      };
+    });
+
+  if (!quotes.length) {
+    return { quoteCount: 0, supplierErrors: supplierSearch.errors };
+  }
+
+  await withDatabaseRetry(() => prisma.supplierQuote.createMany({
+    data: quotes.map((quote) => ({ ...quote, leadId })),
+  }));
+
+  const bestQuote = quotes.reduce(
+    (best, current) => (current.clientPrice || Infinity) < (best.clientPrice || Infinity) ? current : best,
+    quotes[0],
+  );
+
+  await withDatabaseRetry(() => prisma.lead.update({
+    where: { id: leadId },
+    data: { finalPrice: bestQuote.clientPrice, profit: bestQuote.markup },
+  }));
+
+  return { quoteCount: quotes.length, supplierErrors: supplierSearch.errors };
+}
+
 export async function POST(request: Request) {
   const requestId = randomUUID();
 
@@ -133,6 +183,7 @@ export async function POST(request: Request) {
     }
 
     let lead: { id: string } | null = null;
+    let quoteCount = 0;
 
     try {
       lead = await withDatabaseRetry(() => prisma.lead.create({
@@ -155,6 +206,19 @@ export async function POST(request: Request) {
       console.error(`[lead:${requestId}] Failed to save lead`, error);
     }
 
+    if (lead) {
+      try {
+        const supplierResult = await saveSupplierQuotes(lead.id, payload.vin, requestText);
+        quoteCount = supplierResult.quoteCount;
+
+        if (supplierResult.supplierErrors.length) {
+          console.warn(`[lead:${lead.id}] Supplier search completed with errors`, supplierResult.supplierErrors);
+        }
+      } catch (error) {
+        console.error(`[lead:${lead.id}] Failed to save supplier quotes`, error);
+      }
+    }
+
     payload.file = upload?.fileName;
     payload.fileName = upload?.fileName;
     payload.fileMime = upload?.fileMime;
@@ -168,6 +232,7 @@ export async function POST(request: Request) {
       leadId: lead?.id || requestId,
       storage: lead ? "saved" : "unavailable",
       email: email.status,
+      supplierQuotes: quoteCount,
     });
   } catch (error) {
     console.error(`[lead:${requestId}] Failed to process lead`, error);
