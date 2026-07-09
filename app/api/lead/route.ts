@@ -1,9 +1,7 @@
 import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import { NotificationService, type LeadPayload } from "@/lib/notifications/NotificationService";
-import { calculateDetaleksClientPrice } from "@/lib/pricing";
 import { prisma } from "@/lib/prisma";
-import { searchAllSuppliers } from "@/lib/suppliers";
 
 export const runtime = "nodejs";
 
@@ -12,7 +10,6 @@ const maxFileSize = 20 * 1024 * 1024;
 const rateLimitWindowMs = 10 * 60 * 1000;
 const rateLimitMax = 5;
 const rateLimitStore = new Map<string, number[]>();
-
 const databaseRetryDelays = [400, 1200, 2400];
 
 function clean(value: FormDataEntryValue | null) {
@@ -32,13 +29,19 @@ function clientIp(request: Request) {
 function isRateLimited(ip: string) {
   const now = Date.now();
   const recent = (rateLimitStore.get(ip) || []).filter((time) => now - time < rateLimitWindowMs);
+
   if (recent.length >= rateLimitMax) {
     rateLimitStore.set(ip, recent);
     return true;
   }
+
   recent.push(now);
   rateLimitStore.set(ip, recent);
   return false;
+}
+
+function hasValidPhone(phone: string) {
+  return phone.replace(/\D/g, "").length >= 10;
 }
 
 function wait(ms: number) {
@@ -83,7 +86,10 @@ export async function POST(request: Request) {
 
   try {
     const formData = await request.formData();
-    if (clean(formData.get("website"))) return NextResponse.json({ ok: true });
+
+    if (clean(formData.get("website"))) {
+      return NextResponse.json({ ok: true });
+    }
 
     if (isRateLimited(clientIp(request))) {
       return NextResponse.json(
@@ -102,9 +108,16 @@ export async function POST(request: Request) {
       date: new Date().toLocaleString("ru-RU"),
     };
 
-    if (!payload.phone || (!payload.vin && !requestText)) {
+    if (!payload.phone || !hasValidPhone(payload.phone)) {
       return NextResponse.json(
-        { ok: false, message: "Укажите телефон и VIN/frame/артикул или что нужно подобрать." },
+        { ok: false, message: "Укажите корректный телефон." },
+        { status: 400 },
+      );
+    }
+
+    if (!payload.vin && !requestText) {
+      return NextResponse.json(
+        { ok: false, message: "Укажите VIN/frame/артикул или что нужно подобрать." },
         { status: 400 },
       );
     }
@@ -120,27 +133,25 @@ export async function POST(request: Request) {
     }
 
     let lead: { id: string } | null = null;
-    let storageError: string | undefined;
 
     try {
       lead = await withDatabaseRetry(() => prisma.lead.create({
-          data: {
-            name: payload.name,
-            phone: payload.phone,
-            vin: payload.vin,
-            partName: requestText,
-            comment: requestText,
-            source: payload.source,
-            status: "new",
-            fileName: upload?.fileName,
-            fileMime: upload?.fileMime,
-            fileSize: upload?.fileSize,
-            fileData: upload?.fileData,
-          },
-          select: { id: true },
-        }));
+        data: {
+          name: payload.name,
+          phone: payload.phone,
+          vin: payload.vin,
+          partName: requestText,
+          comment: requestText,
+          source: payload.source,
+          status: "new",
+          fileName: upload?.fileName,
+          fileMime: upload?.fileMime,
+          fileSize: upload?.fileSize,
+          fileData: upload?.fileData,
+        },
+        select: { id: true },
+      }));
     } catch (error) {
-      storageError = error instanceof Error ? error.message : "Unknown database error";
       console.error(`[lead:${requestId}] Failed to save lead`, error);
     }
 
@@ -149,60 +160,14 @@ export async function POST(request: Request) {
     payload.fileMime = upload?.fileMime;
     payload.fileData = upload?.fileData;
 
-    const supplierSearch = payload.vin || requestText
-      ? await searchAllSuppliers({ vin: payload.vin, article: payload.vin, partName: requestText })
-      : { results: [], errors: [] };
-
-    const quotes = supplierSearch.results
-      .filter((result) => typeof result.purchasePrice === "number" && result.purchasePrice > 0)
-      .map((result) => {
-        const calculated = calculateDetaleksClientPrice(result.purchasePrice || 0);
-        return {
-          supplier: result.supplier,
-          article: result.article,
-          brand: result.brand,
-          name: result.name,
-          purchasePrice: result.purchasePrice,
-          markup: calculated.markup,
-          clientPrice: calculated.clientPrice,
-          deliveryTerm: result.deliveryTerm,
-          quantity: result.quantity,
-          warehouse: result.warehouse,
-          raw: result.raw ? JSON.stringify(result.raw).slice(0, 4000) : undefined,
-        };
-      });
-
-    if (quotes.length && lead) {
-      try {
-        await withDatabaseRetry(() => prisma.supplierQuote.createMany({
-          data: quotes.map((quote) => ({ ...quote, leadId: lead.id })),
-        }));
-        const bestQuote = quotes.reduce(
-          (best, current) => (current.clientPrice || Infinity) < (best.clientPrice || Infinity) ? current : best,
-          quotes[0],
-        );
-        await withDatabaseRetry(() => prisma.lead.update({
-          where: { id: lead.id },
-          data: { finalPrice: bestQuote.clientPrice, profit: bestQuote.markup },
-        }));
-      } catch (error) {
-        storageError = error instanceof Error ? error.message : "Unknown quote storage error";
-        console.error(`[lead:${requestId}] Failed to save supplier quotes`, error);
-      }
-    }
-
-    const notifications = await NotificationService.sendLead({
-      ...payload,
-      quotes,
-      supplierErrors: supplierSearch.errors,
-    });
+    const email = await NotificationService.sendLeadEmail(payload);
 
     return NextResponse.json({
       ok: true,
+      message: "Спасибо! Заявка принята. Мы скоро свяжемся.",
       leadId: lead?.id || requestId,
-      notifications,
       storage: lead ? "saved" : "unavailable",
-      storageError: storageError ? "Database is temporarily unavailable" : undefined,
+      email: email.status,
     });
   } catch (error) {
     console.error(`[lead:${requestId}] Failed to process lead`, error);

@@ -891,8 +891,23 @@ header > div {
   width: fit-content;
 }
 
-.footer-brand .brand-word {
-  font-size: 1.75rem;
+.footer-logo-word {
+  display: block;
+  color: white;
+  font-size: clamp(1.45rem, 2.4vw, 1.95rem);
+  font-weight: 950;
+  line-height: 0.9;
+  white-space: nowrap;
+  text-transform: uppercase;
+  text-shadow: 0 0 18px rgba(255, 255, 255, 0.16);
+}
+
+.footer-logo-word span {
+  display: inline;
+  margin-top: 0;
+  color: var(--red-bright);
+  font-size: inherit;
+  line-height: inherit;
 }
 
 .requisites-page .section-heading h1 {

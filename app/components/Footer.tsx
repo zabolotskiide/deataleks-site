@@ -21,7 +21,7 @@ export function Footer() {
       <div className="footer-grid mx-auto max-w-7xl">
         <div>
           <a href="#top" className="footer-brand" aria-label="ДЕТАЛЕКС">
-            <span className="brand-word">
+            <span className="footer-logo-word">
               ДЕТАЛ<span>ЕКС</span>
             </span>
             <small>автозапчасти под заказ</small>

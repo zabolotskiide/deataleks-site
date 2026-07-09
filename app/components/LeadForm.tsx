@@ -29,6 +29,7 @@ export function LeadForm({ variant, source }: LeadFormProps) {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
     const form = event.currentTarget;
     const data = new FormData(form);
     data.set("source", source);
@@ -43,7 +44,7 @@ export function LeadForm({ variant, source }: LeadFormProps) {
       if (response.ok && result?.ok) {
         form.reset();
         setStatus("success");
-        setMessage("Спасибо! Заявка успешно отправлена. Мы скоро свяжемся с вами.");
+        setMessage(result.message || "Спасибо! Заявка принята. Мы скоро свяжемся.");
         return;
       }
 
@@ -60,18 +61,53 @@ export function LeadForm({ variant, source }: LeadFormProps) {
 
   return (
     <form className={isHero ? "vin-panel reveal" : "contact-form reveal"} onSubmit={handleSubmit} encType="multipart/form-data">
-      {isHero ? <><h2>Подбор по VIN</h2><p>Оставьте телефон, VIN или коротко опишите, что нужно подобрать.</p></> : null}
+      {isHero ? (
+        <>
+          <h2>Подбор по VIN</h2>
+          <p>Оставьте телефон, VIN или коротко опишите, что нужно подобрать.</p>
+        </>
+      ) : null}
       <input type="hidden" name="source" value={source} />
-      <label className="honeypot-field" aria-hidden="true"><span>Website</span><input name="website" tabIndex={-1} autoComplete="off" /></label>
+      <label className="honeypot-field" aria-hidden="true">
+        <span>Website</span>
+        <input name="website" tabIndex={-1} autoComplete="off" />
+      </label>
       <div className="form-grid">
-        <label><span>Имя</span><input name="name" aria-label="Имя" placeholder="Ваше имя" /></label>
-        <label><span>Телефон</span><input name="phone" aria-label="Телефон" placeholder="+7 (___) ___-__-__" required /></label>
+        <label>
+          <span>Имя</span>
+          <input name="name" aria-label="Имя" placeholder="Ваше имя" />
+        </label>
+        <label>
+          <span>Телефон</span>
+          <input name="phone" aria-label="Телефон" placeholder="+7 (___) ___-__-__" required />
+        </label>
       </div>
-      <label><span>VIN / Frame / Артикул</span><input name="vin" aria-label="VIN, Frame или артикул" placeholder="Введите VIN, frame или артикул" /></label>
-      <label><span>Что нужно подобрать</span><textarea name="requestText" aria-label="Что нужно подобрать" placeholder="Например: Opel Astra H 2005, передние тормозные колодки, VIN если есть" rows={isHero ? 3 : 4} /></label>
-      <label className="file-field"><span>Файл к заявке</span><input name="file" type="file" accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx,.xls,.xlsx" /><small>Можно прикрепить фото детали, список запчастей, PDF, Excel или Word. Максимум 20 MB.</small></label>
-      <button type="submit" disabled={status === "sending"}>{status === "sending" ? "Отправляем..." : "Отправить заявку"}{!isHero ? <ArrowIcon /> : null}</button>
-      <span className="vin-note"><LockIcon />Ваши данные защищены</span>
+      <label>
+        <span>VIN / Frame / Артикул</span>
+        <input name="vin" aria-label="VIN, Frame или артикул" placeholder="Введите VIN, frame или артикул" />
+      </label>
+      <label>
+        <span>Что нужно подобрать</span>
+        <textarea
+          name="requestText"
+          aria-label="Что нужно подобрать"
+          placeholder="Например: Opel Astra H 2005, передние тормозные колодки, VIN если есть"
+          rows={isHero ? 3 : 4}
+        />
+      </label>
+      <label className="file-field">
+        <span>Файл к заявке</span>
+        <input name="file" type="file" accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx,.xls,.xlsx" />
+        <small>Можно прикрепить фото детали, список запчастей, PDF, Excel или Word. Максимум 20 MB.</small>
+      </label>
+      <button type="submit" disabled={status === "sending"}>
+        {status === "sending" ? "Отправляем..." : "Отправить заявку"}
+        {!isHero ? <ArrowIcon /> : null}
+      </button>
+      <span className="vin-note">
+        <LockIcon />
+        Ваши данные защищены
+      </span>
       {message ? <p className={`form-status ${status === "success" ? "success" : "error"}`}>{message}</p> : null}
     </form>
   );
