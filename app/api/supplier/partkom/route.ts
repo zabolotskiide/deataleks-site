@@ -33,6 +33,17 @@ function json(data: unknown, status = 200) {
   return NextResponse.json(data, { status });
 }
 
+export async function GET() {
+  return json({
+    ok: true,
+    supplier: "PartKom",
+    endpoint: "/api/supplier/partkom",
+    method: "POST",
+    authorization: "Bearer token required",
+    configured: Boolean(process.env.PARTKOM_WEBHOOK_TOKEN?.trim()),
+  });
+}
+
 function clean(value: unknown, limit = 1000) {
   return typeof value === "string" ? value.trim().slice(0, limit) : "";
 }
